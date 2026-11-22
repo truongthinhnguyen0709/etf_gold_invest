@@ -1,0 +1,15 @@
+[project]
+name = "etf-gold-invest"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28.1",
+    "numpy>=2.5.2",
+    "pandas>=3.0.5",
+    "polars>=1.43.2",
+    "pyarrow>=25.0.1",
+    "python-dotenv",
+    "yfinance>=1.6.0",
+]
