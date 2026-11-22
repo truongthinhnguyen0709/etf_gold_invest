@@ -6,7 +6,7 @@ A small Python script that tracks how far Vietnamese ETFs and gold have fallen f
 
 For each ticker, the script:
 
-1. Downloads daily closing prices.
+1. Downloads 10 years of daily closing prices from Yahoo Finance (`yfinance`).
 2. Calculates the running peak and the **drawdown** from that peak (in %).
 3. Ranks today's drawdown against its own history to get a **percentile**.
 4. Assigns a **zone** from the percentile.
@@ -17,10 +17,13 @@ A 50-day rolling z-score of price is also calculated, but it is not currently us
 
 ### Tracked tickers
 
-| Source | Tickers |
+| Ticker | Asset |
 |---|---|
-| `yfinance` (10 years) | `FUEVFVND.VN`, `E1VFVN30.VN`, `FUEVN100.VN`, `FUESSVFL.VN` |
-| `yfinance` (10 years) | `XAUT-USD` |
+| `FUEVFVND.VN` | DCVFMVN Diamond ETF |
+| `E1VFVN30.VN` | DCVFMVN30 ETF |
+| `FUEVN100.VN` | VinaCapital VN100 ETF |
+| `FUESSVFL.VN` | SSIAM VNFIN LEAD ETF |
+| `XAUT-USD` | Tether Gold (gold proxy) |
 
 ### Zones
 
@@ -38,7 +41,7 @@ Drawdowns are negative, so a low percentile means a deeper drawdown than usual.
 ```
 🚀 Stock Alert
 ------------------
-1. Ticker: E1VFVN30
+1. Ticker: E1VFVN30.VN
 2. Price: 25.40
 3. Peak: 28.10
 4. Zone: Floor_2
@@ -52,15 +55,23 @@ Drawdowns are negative, so a low percentile means a deeper drawdown than usual.
 - [uv](https://docs.astral.sh/uv/) (the project uses `pyproject.toml` and `uv.lock`)
 - A Telegram bot token and chat ID
 
-Main dependencies: `polars`, `pandas`, `numpy`, `httpx`, `yfinance`.
+Main dependencies: `polars`, `pandas`, `numpy`, `httpx`, `yfinance`, `python-dotenv`.
 
 ## Setup
 
 ```bash
 uv sync
+cp .env.example .env
 ```
 
-> **Note:** the API keys and Telegram credentials are currently hardcoded in `main.py`. Move them to environment variables before committing or sharing the code, and revoke any token that has already been exposed.
+Then fill in your Telegram credentials in `.env`:
+
+```env
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
+```
+
+`.env` is listed in `.gitignore`, so it is never committed.
 
 ## Usage
 
@@ -70,28 +81,31 @@ Run once:
 uv run main.py
 ```
 
-Run on a schedule with cron, for example every weekday at 15:30 and logging to `cron.log`:
+Run on a schedule with cron, for example every weekday at 15:30, logging to `cron.log`:
 
 ```cron
-30 15 * * 1-5 cd /home/thinh/VS_CODE/etf_gold_invest && uv run main.py >> cron.log 2>&1
+30 15 * * 1-5 cd /path/to/etf_gold_invest && uv run main.py >> cron.log 2>&1
 ```
 
-To change the tickers, edit the `source_data` dictionary at the bottom of `main.py`.
+Log files (`*.log`) are ignored by git.
+
+To change the tickers, edit the `tickers` list at the bottom of `main.py`. Any symbol Yahoo Finance supports will work (Vietnamese stocks use the `.VN` suffix).
 
 ## Project structure
 
 ```
 .
 ├── main.py          # data fetching, metrics, Telegram alert
+├── .env.example     # template for Telegram credentials
 ├── pyproject.toml   # project metadata and dependencies
-├── uv.lock          # locked dependency versions
-└── cron.log         # output from scheduled runs
+└── uv.lock          # locked dependency versions
 ```
 
 ## Known limitations
 
 - Errors are only printed, so a failed ticker produces no alert and no notification.
-- The peak is the maximum within the downloaded window (8 or 10 years), so the zones for VN tickers and gold are not strictly comparable.
+- The Telegram API response is not checked, so a failed send (wrong token or chat ID) goes unnoticed.
+- The peak and percentiles only use the downloaded history. Tickers with less than 10 years of data (such as `XAUT-USD` and the newer ETFs) have a shorter baseline, so their zones are not strictly comparable.
 
 ## Disclaimer
 
