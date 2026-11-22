@@ -5,6 +5,7 @@ import yfinance as yf
 import httpx
 from datetime import date, datetime
 import os
+import sys
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,11 +13,20 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
+def send_telegram_text(text):
+    """Send a text message to Telegram. Raises if Telegram rejects it."""
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text}
+
+    response = httpx.post(url, data=payload, timeout=30)
+    data = response.json()
+    if not data.get("ok"):
+        raise RuntimeError(f"Telegram error {response.status_code}: {data.get('description')}")
+    return data
+
+
 # Send telegram function
 def send_telegram_msg(ticker, price, peak, zone, benchmark,  percentile):
-    token = TELEGRAM_BOT_TOKEN
-    chat_id = TELEGRAM_CHAT_ID
-
     message = (
         f"""
 🚀 Stock Alert
@@ -29,20 +39,14 @@ def send_telegram_msg(ticker, price, peak, zone, benchmark,  percentile):
 6. Percentile: {percentile:.2f}
         """
     )
-    
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": message
-    }
-
-    response = httpx.post(url,data=payload)
-    return response.json()
+    return send_telegram_text(message)
 
 
 
 def yfinance_tele(ticker):
     df_raw = yf.download(ticker,period='10y', multi_level_index=False).reset_index()
+    if df_raw.empty or 'Close' not in df_raw.columns:
+        raise ValueError("no price data returned from Yahoo Finance")
     
     df_ticker_polars = pl.from_pandas(df_raw)
     
@@ -109,9 +113,24 @@ if __name__ == '__main__':
     # Vietnamese ETFs use the Yahoo ".VN" suffix
     tickers = ['FUEVFVND.VN', 'E1VFVN30.VN', 'FUEVN100.VN', 'FUESSVFL.VN', 'XAUT-USD']
 
+    errors = []
     for symbol in tickers:
         try:
             payload_msg = yfinance_tele(symbol)
             send_telegram_msg(**payload_msg)
         except Exception as e:
             print(symbol, e)
+            errors.append(f"- {symbol}: {type(e).__name__}: {e}")
+
+    if errors:
+        report = (
+            f"⚠️ ETF alert errors ({datetime.now():%Y-%m-%d %H:%M})\n"
+            f"{len(errors)}/{len(tickers)} tickers failed:\n"
+            + "\n".join(errors)
+        )[:4000]  # Telegram limit is 4096 characters
+        try:
+            send_telegram_text(report)
+        except Exception as e:
+            # Telegram itself is unreachable or misconfigured: only the log is left
+            print("Could not send error report to Telegram:", e)
+        sys.exit(1)

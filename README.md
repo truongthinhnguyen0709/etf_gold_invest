@@ -13,6 +13,14 @@ For each ticker, the script:
 5. Computes a **benchmark price**: the price at which the drawdown would equal its 25th percentile (`peak × (1 + p25 drawdown / 100)`).
 6. Sends the result to a Telegram chat.
 
+If any ticker fails (no data from Yahoo, network error, Telegram rejecting a message), the script finishes the other tickers, then sends one error report to the same chat and exits with code 1:
+
+```
+⚠️ ETF alert errors (2026-11-22 15:30)
+1/5 tickers failed:
+- FUEVN100.VN: ValueError: no price data returned from Yahoo Finance
+```
+
 A 50-day rolling z-score of price is also calculated, but it is not currently used in the alert.
 
 ### Tracked tickers
@@ -103,8 +111,7 @@ To change the tickers, edit the `tickers` list at the bottom of `main.py`. Any s
 
 ## Known limitations
 
-- Errors are only printed, so a failed ticker produces no alert and no notification.
-- The Telegram API response is not checked, so a failed send (wrong token or chat ID) goes unnoticed.
+- If Telegram itself is unreachable or misconfigured (wrong token or chat ID), the error report cannot be delivered and is only printed to the log.
 - The peak and percentiles only use the downloaded history. Tickers with less than 10 years of data (such as `XAUT-USD` and the newer ETFs) have a shorter baseline, so their zones are not strictly comparable.
 
 ## Disclaimer
